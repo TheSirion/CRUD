@@ -1,55 +1,69 @@
 import sqlite3
 from pathlib import Path
+from dataclasses import dataclass
 
 CAMINHO_BANCO = Path(__file__).resolve().parent / "tarefas.db"
 
-def inicializar_banco():
-    # conexao, cursor = abrir_conexao()
-    with sqlite3.connect(CAMINHO_BANCO) as conexao:
-        cursor = conexao.cursor()
+@dataclass
+class TarefaDTO:
+    id: int
+    titulo: str
+    concluida: bool
 
-        sql_criar_tabela = """
-            CREATE TABLE IF NOT EXISTS tarefas (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                titulo TEXT NOT NULL,
-                concluida BOOLEAN NOT NULL DEFAULT 0
-            );
-        """
+class TarefaRepository:
+    def __init__(self, caminho_banco) -> None:
+        self.caminho_banco = caminho_banco
+        self._inicializar_banco()
 
-        # executa o SQL
-        cursor.execute(sql_criar_tabela)
-    
-    # Confirma a alteração e fecha a conexão
-    # conexao.commit()
-    # conexao.close()
 
-def criar_tarefa(titulo):
-    # conexao, cursor = abrir_conexao()
-    # ? é usado para evitar SQL injection
-    with sqlite3.connect(CAMINHO_BANCO) as conexao:
-        conexao.execute("INSERT INTO tarefas (titulo, concluida) VALUES (?, ?)", (titulo, False))
+    def _inicializar_banco(self) -> None:
+        with sqlite3.connect(self.caminho_banco) as conexao:
+            cursor = conexao.cursor()
 
-def concluir_tarefa(id_tarefa):
-    # conexao, cursor = abrir_conexao()
-    with sqlite3.connect(CAMINHO_BANCO) as conexao:
-        conexao.execute("UPDATE tarefas SET concluida = 1 WHERE id = ?", (id_tarefa,))
+            sql_criar_tabela = """
+                CREATE TABLE IF NOT EXISTS tarefas (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    titulo TEXT NOT NULL,
+                    concluida BOOLEAN NOT NULL DEFAULT 0
+                );
+            """
 
-def deletar_tarefa(id_tarefa):
-    # conexao, cursor = abrir_conexao()
-    with sqlite3.connect(CAMINHO_BANCO) as conexao:
-        conexao.execute("DELETE FROM tarefas WHERE id = ?", (id_tarefa,))
+            # executa o SQL
+            cursor.execute(sql_criar_tabela)
+        
+        # Confirma a alteração e fecha a conexão
+        # conexao.commit()
+        # conexao.close()
 
-def mostrar_tarefas():
-    # conexao, cursor = abrir_conexao()
-    with sqlite3.connect(CAMINHO_BANCO) as conexao:
-        cursor = conexao.cursor()
-        cursor.execute("SELECT * FROM tarefas")
-        tarefas = cursor.fetchall()
-    
+    def criar(self, titulo) -> None:
+        # ? é usado para evitar SQL injection
+        with sqlite3.connect(self.caminho_banco) as conexao:
+            conexao.execute("INSERT INTO tarefas (titulo, concluida) VALUES (?, ?)", (titulo, False))
+
+    def concluir(self, id_tarefa) -> None:
+        with sqlite3.connect(self.caminho_banco) as conexao:
+            conexao.execute("UPDATE tarefas SET concluida = 1 WHERE id = ?", (id_tarefa,))
+
+    def deletar(self, id_tarefa) -> None:
+        with sqlite3.connect(self.caminho_banco) as conexao:
+            conexao.execute("DELETE FROM tarefas WHERE id = ?", (id_tarefa,))
+
+    def listar(self) -> list[TarefaDTO]:
+        with sqlite3.connect(self.caminho_banco) as conexao:
+            cursor = conexao.cursor()
+            cursor.execute("SELECT * FROM tarefas")
+            tarefas = cursor.fetchall()
+            tarefasDTO = [TarefaDTO(t[0], t[1], bool(t[2])) for t in tarefas]
+            return tarefasDTO
+
+def listar_tarefas(tarefas: list[TarefaDTO]):
+    print("*-----------TAREFAS------------*")
     for tarefa in tarefas:
-        print(f"{tarefa[0]} - {tarefa[1]} - {'Concluída' if tarefa[2] else 'Pendente'}")
+        print(f"{tarefa.id} - {tarefa.titulo} - {'Concluída' if tarefa.concluida else 'Pendente'}")
+    print("*------------------------------*")
 
-def selecionar_opcao():
+
+def selecionar_opcao(repo: TarefaRepository):
     opcao = input(
     """
 O que você quer fazer agora?
@@ -63,28 +77,27 @@ O que você quer fazer agora?
 
     match(opcao):
         case "1":
-            mostrar_tarefas()
+            listar_tarefas(repo.listar())
         case "2":
             nova_tarefa = input("Adicione uma nova tarefa:\n")
-            criar_tarefa(nova_tarefa)
-            print("\nTarefa adicionada")
+            repo.criar(nova_tarefa)
+            print("\nTarefa adicionada", end="\n--------")
         case "3":
             tarefa_concluida = input("Insira o número da tarefa concluída:\n")
-            concluir_tarefa(tarefa_concluida)
-            print("\nTarefa concluída")
+            repo.concluir(tarefa_concluida)
+            print("\nTarefa concluída", end="\n--------")
         case "4":
             tarefa_deletada = input("Insira o número da tarefa a ser excluída:\n")
-            deletar_tarefa(tarefa_deletada)
-            print("\nTarefa excluída")
+            repo.deletar(tarefa_deletada)
+            print("\nTarefa excluída", end="\n--------")
         case "5":
             exit()
         case "_":
-            print("Input inválido. Selecione um número válido.")
+            return "Input inválido. Selecione um número válido."
 
 
 if __name__ == "__main__":
-    inicializar_banco()
-    mostrar_tarefas()
+    tarefa_repository = TarefaRepository(CAMINHO_BANCO)
 
     while(True):
-        selecionar_opcao()
+        selecionar_opcao(tarefa_repository)
